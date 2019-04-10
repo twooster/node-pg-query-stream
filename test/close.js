@@ -45,8 +45,5 @@ helper('close callback', function (client) {
         done()
       })
     })
-    query.on('close', function () {
-      assert(false, 'close event should not fire') // no close event because we did not read to the end of the stream.
-    })
   })
 })

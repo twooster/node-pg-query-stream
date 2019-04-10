@@ -24,33 +24,51 @@ class PgQueryStream extends Readable {
   }
 
   close (callback) {
+    if (this._closed) {
+      if (callback) {
+        callback()
+      }
+      return
+    }
+
+    if (callback) {
+      this.once('close', callback)
+    }
+    this.destroy()
+  }
+
+  _destroy(err, callback) {
     this._closed = true
-    const cb = callback || (() => this.emit('close'))
-    this.cursor.close(cb)
+    this.cursor.close(callback)
   }
 
   _read (size) {
     if (this._reading || this._closed) {
       return false
     }
-    this._reading = true
     const readAmount = Math.max(size, this.batchSize)
+
+    this._reading = true
     this.cursor.read(readAmount, (err, rows) => {
+      this._reading = false
+
       if (this._closed) {
         return
       }
+
       if (err) {
-        return this.emit('error', err)
+        this.emit('error', err)
+        return
       }
+
       // if we get a 0 length array we've read to the end of the cursor
       if (!rows.length) {
-        this._closed = true
-        setImmediate(() => this.emit('close'))
-        return this.push(null)
+        this.once('end', () => this.destroy())
+        this.push(null)
+        return
       }
 
       // push each row into the stream
-      this._reading = false
       for (var i = 0; i < rows.length; i++) {
         this.push(rows[i])
       }
